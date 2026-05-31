@@ -14,21 +14,22 @@ export const isTopTile = (tile: Tile, allTiles: Tile[]): boolean => {
   return !allTiles.some(t => 
     !t.isRemoved && 
     t.layer > tile.layer &&
-    Math.abs(t.x - tile.x) < 1 &&
-    Math.abs(t.y - tile.y) < 1
+    Math.abs(t.x - tile.x) < 0.8 &&
+    Math.abs(t.y - tile.y) < 0.8
   );
 };
 
 // 初始化游戏
 export const initGame = (): GameState => {
   const tiles: Tile[] = [];
-  const gridSize = 5;
-  const layers = 3;
+  const gridCols = 5; // 5列
+  const gridRows = 4; // 4行
+  const layers = 2;  // 2层，减少到2层让布局更清晰
   
-  // 生成方块池（每种类型有6个，共60个方块）
+  // 生成方块池（每种类型有4个，共40个方块，刚好放满）
   const tilePool: string[] = [];
   TILE_TYPES.forEach(type => {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       tilePool.push(type);
     }
   });
@@ -41,18 +42,17 @@ export const initGame = (): GameState => {
   
   let poolIndex = 0;
   
-  // 生成多层方块
+  // 生成整齐的多层方块
   for (let layer = 0; layer < layers; layer++) {
-    const offset = layer * 0.3; // 每层偏移一点
-    for (let x = 0; x < gridSize; x++) {
-      for (let y = 0; y < gridSize; y++) {
-        // 随机决定是否在这个位置放下方块（避免太满）
-        if (Math.random() > 0.3 && poolIndex < tilePool.length) {
+    const layerOffset = 0.3; // 每层的轻微偏移
+    for (let y = 0; y < gridRows; y++) {
+      for (let x = 0; x < gridCols; x++) {
+        if (poolIndex < tilePool.length) {
           tiles.push({
             id: generateId(),
             type: tilePool[poolIndex],
-            x: x + offset,
-            y: y + offset,
+            x: x + (layers - layer - 1) * layerOffset,
+            y: y + (layers - layer - 1) * layerOffset,
             layer: layer,
             isRemoved: false
           });
@@ -60,19 +60,6 @@ export const initGame = (): GameState => {
         }
       }
     }
-  }
-  
-  // 如果方块池还有剩余，随机放置
-  while (poolIndex < tilePool.length) {
-    tiles.push({
-      id: generateId(),
-      type: tilePool[poolIndex],
-      x: Math.random() * (gridSize - 1),
-      y: Math.random() * (gridSize - 1),
-      layer: Math.floor(Math.random() * layers),
-      isRemoved: false
-    });
-    poolIndex++;
   }
   
   return {

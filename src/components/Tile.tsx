@@ -41,8 +41,8 @@ const Tile: React.FC<TileProps> = ({ tile, allTiles, onClick }) => {
           : 'opacity-70 cursor-not-allowed'
       }`}
       style={{
-        left: `${tile.x * 70 + 20}px`,
-        top: `${tile.y * 70 + 20}px`,
+        left: `${tile.x * 68 + 10}px`,
+        top: `${tile.y * 68 + 10}px`,
         zIndex: tile.layer + 10,
       }}
       onClick={handleClick}
