@@ -1,139 +1,110 @@
-import { Tile, GameState } from '@/types/game';
+import { Player, Monster, Item, Pet, GameState, LEVEL_NAMES, LEVEL_EMOJIS, MONSTER_EMOJIS } from '@/types/game';
 
-// 方块类型 - 10种不同的动物表情
-export const TILE_TYPES = ['🐑', '🐄', '🐖', '🐔', '🐕', '🐈', '🐰', '🐿️', '🦔', '🦊'];
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
 
-// 生成唯一ID
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// 检查方块是否被覆盖（是否为顶层）
-export const isTopTile = (tile: Tile, allTiles: Tile[]): boolean => {
-  if (tile.isRemoved) return false;
-  
-  // 检查是否有其他方块在它上方（更大的layer值，并且位置重叠）
-  return !allTiles.some(t => 
-    !t.isRemoved && 
-    t.layer > tile.layer &&
-    Math.abs(t.x - tile.x) < 0.8 &&
-    Math.abs(t.y - tile.y) < 0.8
-  );
-};
-
-// 初始化游戏
 export const initGame = (): GameState => {
-  const tiles: Tile[] = [];
-  const gridCols = 5; // 5列
-  const gridRows = 4; // 4行
-  const layers = 2;  // 2层，减少到2层让布局更清晰
+  const player: Player = {
+    id: generateId(),
+    x: GAME_WIDTH / 2,
+    y: GAME_HEIGHT / 2,
+    level: 0,
+    points: 0,
+    hp: 100,
+    maxHp: 100,
+    speed: 5,
+    emoji: LEVEL_EMOJIS[0],
+  };
+
+  const monsters: Monster[] = [];
+  const numMonsters = 15;
   
-  // 生成方块池（每种类型有4个，共40个方块，刚好放满）
-  const tilePool: string[] = [];
-  TILE_TYPES.forEach(type => {
-    for (let i = 0; i < 4; i++) {
-      tilePool.push(type);
-    }
-  });
-  
-  // 打乱顺序
-  for (let i = tilePool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [tilePool[i], tilePool[j]] = [tilePool[j], tilePool[i]];
+  for (let i = 0; i < numMonsters; i++) {
+    const level = Math.min(Math.floor(i / 3), 4);
+    monsters.push({
+      id: generateId(),
+      x: Math.random() * (GAME_WIDTH - 60) + 30,
+      y: Math.random() * (GAME_HEIGHT - 60) + 30,
+      level: level,
+      points: (level + 1) * 10,
+      emoji: MONSTER_EMOJIS[level],
+      speed: 1 + level * 0.5,
+      direction: {
+        x: (Math.random() - 0.5) * 2,
+        y: (Math.random() - 0.5) * 2,
+      },
+      isAlive: true,
+    });
   }
-  
-  let poolIndex = 0;
-  
-  // 生成整齐的多层方块
-  for (let layer = 0; layer < layers; layer++) {
-    const layerOffset = 0.3; // 每层的轻微偏移
-    for (let y = 0; y < gridRows; y++) {
-      for (let x = 0; x < gridCols; x++) {
-        if (poolIndex < tilePool.length) {
-          tiles.push({
-            id: generateId(),
-            type: tilePool[poolIndex],
-            x: x + (layers - layer - 1) * layerOffset,
-            y: y + (layers - layer - 1) * layerOffset,
-            layer: layer,
-            isRemoved: false
-          });
-          poolIndex++;
-        }
-      }
-    }
-  }
-  
+
+  const items: Item[] = [
+    { id: generateId(), x: Math.random() * (GAME_WIDTH - 40) + 20, y: Math.random() * (GAME_HEIGHT - 40) + 20, type: 'points', value: 50, emoji: '💎', isCollected: false },
+    { id: generateId(), x: Math.random() * (GAME_WIDTH - 40) + 20, y: Math.random() * (GAME_HEIGHT - 40) + 20, type: 'hp', value: 30, emoji: '❤️', isCollected: false },
+    { id: generateId(), x: Math.random() * (GAME_WIDTH - 40) + 20, y: Math.random() * (GAME_HEIGHT - 40) + 20, type: 'speed', value: 1, emoji: '⚡', isCollected: false },
+    { id: generateId(), x: Math.random() * (GAME_WIDTH - 40) + 20, y: Math.random() * (GAME_HEIGHT - 40) + 20, type: 'points', value: 30, emoji: '✨', isCollected: false },
+  ];
+
   return {
-    tiles,
-    slot: [],
-    eliminatedPairs: 0,
+    player,
+    monsters,
+    items,
+    pet: null,
     isGameOver: false,
-    isVictory: false
+    isVictory: false,
   };
 };
 
-// 处理方块点击
-export const handleTileClick = (state: GameState, tileId: string): GameState => {
-  if (state.isGameOver || state.isVictory) return state;
-  
-  const tile = state.tiles.find(t => t.id === tileId);
-  if (!tile || tile.isRemoved || !isTopTile(tile, state.tiles)) {
-    return state;
+export const checkCollision = (obj1: { x: number; y: number }, obj2: { x: number; y: number }, radius1 = 25, radius2 = 25): boolean => {
+  const dx = obj1.x - obj2.x;
+  const dy = obj1.y - obj2.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  return distance < radius1 + radius2;
+};
+
+export const updateMonsterPosition = (monster: Monster): Monster => {
+  let newX = monster.x + monster.direction.x * monster.speed;
+  let newY = monster.y + monster.direction.y * monster.speed;
+  let newDirection = { ...monster.direction };
+
+  if (newX < 30 || newX > GAME_WIDTH - 30) {
+    newDirection.x = -newDirection.x;
+    newX = Math.max(30, Math.min(GAME_WIDTH - 30, newX));
   }
-  
-  // 添加到槽位
-  const newSlot = [...state.slot, tile.type];
-  
-  // 移除方块
-  const newTiles = state.tiles.map(t => 
-    t.id === tileId ? { ...t, isRemoved: true } : t
-  );
-  
-  // 检查消除
-  let processedSlot = [...newSlot];
-  let eliminatedPairs = state.eliminatedPairs;
-  
-  // 检查是否有3个相同的
-  const typeCount: Record<string, number> = {};
-  processedSlot.forEach(type => {
-    typeCount[type] = (typeCount[type] || 0) + 1;
-  });
-  
-  // 找出需要消除的类型
-  const typesToRemove: string[] = [];
-  Object.entries(typeCount).forEach(([type, count]) => {
-    if (count >= 3) {
-      typesToRemove.push(type);
-    }
-  });
-  
-  // 执行消除
-  if (typesToRemove.length > 0) {
-    let tempSlot = [...processedSlot];
-    typesToRemove.forEach(type => {
-      let removeCount = 3;
-      tempSlot = tempSlot.filter(item => {
-        if (item === type && removeCount > 0) {
-          removeCount--;
-          eliminatedPairs++;
-          return false;
-        }
-        return true;
-      });
-    });
-    processedSlot = tempSlot;
+  if (newY < 30 || newY > GAME_HEIGHT - 30) {
+    newDirection.y = -newDirection.y;
+    newY = Math.max(30, Math.min(GAME_HEIGHT - 30, newY));
   }
-  
-  // 检查游戏结束条件
-  const remainingTiles = newTiles.filter(t => !t.isRemoved).length;
-  const isVictory = remainingTiles === 0;
-  const isGameOver = !isVictory && processedSlot.length >= 7;
-  
+
+  if (Math.random() < 0.02) {
+    newDirection = {
+      x: (Math.random() - 0.5) * 2,
+      y: (Math.random() - 0.5) * 2,
+    };
+  }
+
   return {
-    ...state,
-    tiles: newTiles,
-    slot: processedSlot,
-    eliminatedPairs,
-    isGameOver,
-    isVictory
+    ...monster,
+    x: newX,
+    y: newY,
+    direction: newDirection,
+  };
+};
+
+export const updatePlayerLevel = (player: Player): Player => {
+  let newLevel = 0;
+  const points = player.points;
+  
+  if (points >= 500) newLevel = 5;
+  else if (points >= 300) newLevel = 4;
+  else if (points >= 150) newLevel = 3;
+  else if (points >= 80) newLevel = 2;
+  else if (points >= 30) newLevel = 1;
+
+  return {
+    ...player,
+    level: newLevel,
+    emoji: LEVEL_EMOJIS[newLevel],
   };
 };
